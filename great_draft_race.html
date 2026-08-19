@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fantasy Football Horse Race</title>
+<style>
+:root{--bg:#08111f;--panel:#101d31;--panel2:#15263d;--text:#f4f7fb;--muted:#9db0c8;--gold:#f4c95d;--green:#49d17d;--red:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#17304d 0,#08111f 48%,#050a12 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
+.wrap{max-width:1050px;margin:auto;padding:24px 16px 50px}.hero{text-align:center;padding:20px 0 12px}.eyebrow{color:var(--gold);font-weight:800;letter-spacing:2px;font-size:12px}.hero h1{font-size:clamp(30px,6vw,56px);margin:8px 0 4px}.hero p{color:var(--muted);margin:0}
+.grid{display:grid;grid-template-columns:1.4fr .8fr;gap:16px;margin-top:20px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:rgba(16,29,49,.9);border:1px solid #263b56;border-radius:18px;padding:18px;box-shadow:0 12px 35px rgba(0,0,0,.25)}
+.card h2{margin:0 0 14px;font-size:18px}.status{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.big{font-size:28px;font-weight:900}.muted{color:var(--muted)}
+.bar{height:14px;background:#07101b;border-radius:99px;overflow:hidden;margin:14px 0 8px}.fill{height:100%;background:linear-gradient(90deg,#e9ad2c,#ffe48a);width:0%;transition:width .5s}
+.race{position:relative;background:#0b1625;border:1px solid #263b56;border-radius:16px;overflow:hidden;height:470px}
+.track{position:absolute;inset:16px 52px 16px 16px;border:2px solid #526a83;border-radius:18px;background:repeating-linear-gradient(0deg,#172b28 0 22px,#18332f 22px 44px)}
+.track:before{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:3px dashed rgba(255,255,255,.28)}
+.start,.finish{position:absolute;top:0;bottom:0;width:12px;z-index:1}.start{left:10%;background:repeating-linear-gradient(0deg,#fff 0 12px,#111 12px 24px)}.finish{right:10%;background:repeating-linear-gradient(0deg,#fff 0 12px,#111 12px 24px)}
+.finish-label{position:absolute;right:1%;top:8px;font-weight:900;font-size:11px;writing-mode:vertical-rl}
+.horse{position:absolute;left:0;transform:translateY(-50%);display:flex;align-items:center;gap:5px;transition:left 1s ease;white-space:nowrap;font-weight:800;font-size:14px;text-shadow:0 2px 4px #000}.horse .emoji{font-size:24px;filter:drop-shadow(0 2px 2px #000)}.horse .name{background:#08111fcc;border:1px solid #526a83;padding:4px 7px;border-radius:8px}
+.leaderboard{display:flex;flex-direction:column;gap:7px}.row{display:grid;grid-template-columns:35px 1fr 75px 72px;align-items:center;gap:8px;background:#0c1727;border:1px solid #20354e;border-radius:11px;padding:9px 10px}.pos{font-weight:900;color:var(--gold)}.dist{text-align:right;font-variant-numeric:tabular-nums}.delta{text-align:right;font-size:12px;color:var(--green)}.delta.down{color:var(--red)}
+.count{font-size:22px;font-weight:900;font-variant-numeric:tabular-nums}.notice{margin-top:12px;padding:11px 12px;border-radius:10px;background:#0b1625;color:var(--muted);font-size:13px;line-height:1.45}
+.footer{text-align:center;color:#6f829a;font-size:12px;margin-top:18px}
+button{border:0;border-radius:10px;padding:10px 14px;font-weight:800;background:var(--gold);color:#111;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="eyebrow">2026 FANTASY FOOTBALL • DRAFT ORDER EVENT</div>
+    <h1>🏇 THE GREAT DRAFT RACE</h1>
+    <p>10 horses. 7 days. One race. Your finish determines your draft pick.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="status">
+        <div><div class="muted">RACE STATUS</div><div class="big" id="status">Loading…</div></div>
+        <div><div class="muted">TIME REMAINING</div><div class="count" id="count">—</div></div>
+      </div>
+      <div class="bar"><div class="fill" id="overall"></div></div>
+      <div class="muted" id="phase">Preparing the starting gate…</div>
+      <div class="race" style="margin-top:16px">
+        <div class="track" id="track"></div>
+        <div class="start"></div><div class="finish"></div><div class="finish-label">FINISH</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🏆 Live Draft Order</h2>
+      <div class="leaderboard" id="board"></div>
+      <div class="notice">
+        <b>How it works:</b> The race is fully simulated. Everyone sees the same standings from the same link. Positions fluctuate throughout the 7-day race, and the final finishing order becomes the fantasy draft order.
+      </div>
+    </div>
+  </div>
+  <div class="footer">Refresh the page anytime — the race clock and standings are calculated automatically.</div>
+</div>
+
+<script>
+const racers = ["re","wayne","matt","Jackie","will","Doug","dariel","josh","dalston","gross"];
+// Change START_UTC if you want to start the event at a different time.
+// Current setup: August 19, 2026 at 12:00 PM Eastern (16:00 UTC).
+const START_UTC = Date.UTC(2026,7,19,16,0,0);
+const END_UTC = START_UTC + 7*24*60*60*1000;
+const TOTAL = END_UTC-START_UTC;
+
+function hash(n){let x=Math.sin(n*12.9898)*43758.5453123;return x-Math.floor(x)}
+function progress(i,t){
+  // Deterministic "race simulation": every horse has a base pace,
+  // plus smooth surges/slumps so the leaderboard can change.
+  const base=[1.01,.98,1.00,.965,1.025,.975,.99,1.015,.955,.985][i];
+  let p=0;
+  const steps=168; // one simulated movement per hour
+  for(let s=0;s<steps;s++){
+    const a=s/steps;
+    if(a>t) break;
+    const wobble=.78+.42*hash(i*1000+s*17+91);
+    const surge=.12*Math.sin((s+i*2.7)/5.3)+.08*Math.sin((s+i)/13);
+    p += (base*wobble + surge*.18);
+  }
+  const partial=t*steps-Math.floor(t*steps);
+  const s=Math.floor(t*steps);
+  if(s<steps){
+    const wobble=.78+.42*hash(i*1000+s*17+91);
+    const surge=.12*Math.sin((s+i*2.7)/5.3)+.08*Math.sin((s+i)/13);
+    p += partial*(base*wobble + surge*.18);
+  }
+  return p;
+}
+function fmt(ms){
+  if(ms<=0)return "FINISHED";
+  const d=Math.floor(ms/86400000);ms%=86400000;
+  const h=Math.floor(ms/3600000);ms%=3600000;
+  const m=Math.floor(ms/60000);const s=Math.floor((ms%60000)/1000);
+  return `${d}d ${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m ${String(s).padStart(2,"0")}s`;
+}
+const track=document.getElementById("track");
+racers.forEach((n,i)=>{
+  const el=document.createElement("div");el.className="horse";el.id="h"+i;
+  el.style.top=(9+i*9.1)+"%";
+  el.innerHTML=`<span class="emoji">🐎</span><span class="name">${n}</span>`;
+  track.appendChild(el);
+});
+
+let lastOrder=[];
+function tick(){
+  const now=Date.now();
+  const elapsed=Math.max(0,Math.min(TOTAL,now-START_UTC));
+  const t=elapsed/TOTAL;
+  const finished=t>=1;
+  document.getElementById("overall").style.width=(t*100)+"%";
+  document.getElementById("count").textContent=fmt(END_UTC-now);
+  document.getElementById("status").textContent=now<START_UTC?"STARTING SOON":(finished?"🏁 FINISH":"🏇 RACING");
+  document.getElementById("phase").textContent=now<START_UTC
+    ?"The gates open when the countdown reaches zero."
+    :(finished?"The final order is locked. Draft picks are shown below.":"The pack is moving — check back later to see who has surged ahead.");
+
+  const vals=racers.map((n,i)=>({n,i,p:progress(i,Math.max(0,Math.min(1,t)))}));
+  vals.sort((a,b)=>b.p-a.p);
+  vals.forEach((v,rank)=>{
+    const el=document.getElementById("h"+v.i);
+    // Keep horses inside track; finish at ~90%.
+    el.style.left=(10+Math.min(80,v.p/(Math.max(...vals.map(x=>x.p))||1)*78))+"%";
+    el.style.zIndex=100-rank;
+  });
+
+  const board=document.getElementById("board");
+  board.innerHTML="";
+  vals.forEach((v,rank)=>{
+    const prev=lastOrder.indexOf(v.n);
+    const delta=prev<0?"":(prev-rank>0?"▲ "+(prev-rank):(prev-rank<0?"▼ "+(rank-prev):"—"));
+    const row=document.createElement("div");row.className="row";
+    row.innerHTML=`<div class="pos">${finished?"#"+(rank+1):rank+1}</div><div><b>${v.n}</b></div><div class="dist">${(v.p*10).toFixed(1)} mi</div><div class="delta ${delta.startsWith("▼")?"down":""}">${delta}</div>`;
+    board.appendChild(row);
+  });
+  lastOrder=vals.map(v=>v.n);
+}
+tick();setInterval(tick,1000);
+</script>
+</body>
+</html>
